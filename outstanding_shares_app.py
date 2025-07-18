@@ -21,6 +21,7 @@ def get_fund_profile(symbol, api_key):
                 "shares_outstanding": profile.get("sharesOutstanding"),
                 "market_cap": profile.get("mktCap"),
                 "price": profile.get("price"),
+                "website": profile.get("website"),
                 "symbol": symbol
             }
         else:
@@ -38,6 +39,7 @@ if ticker:
             shares_outstanding = result["shares_outstanding"]
             market_cap = result["market_cap"]
             price = result["price"]
+            website = result["website"]
 
             st.markdown(f"### 📄 Fund: **{fund_name} ({ticker})**")
 
@@ -56,11 +58,14 @@ if ticker:
             else:
                 st.info("Price data is not available.")
 
-            # Calculate NAV if possible
             if market_cap and shares_outstanding:
                 nav = market_cap / shares_outstanding
                 st.write(f"**Estimated NAV:** ${nav:,.4f}")
             else:
                 st.info("NAV could not be calculated due to missing data.")
+
+            if website:
+                st.markdown(f"[🔗 Official Fund Page]({website})", unsafe_allow_html=True)
+
         else:
             st.warning("❌ No data found for that ticker. Please check that it's a valid ETF or mutual fund.")
