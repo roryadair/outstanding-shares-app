@@ -5,70 +5,80 @@ st.set_page_config(page_title="Outstanding Shares Finder", page_icon="📊")
 st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
 
 ticker = st.text_input("Enter an ETF or mutual fund ticker symbol (e.g., JHCB, SPY, VTI):").upper().strip()
-api_key = st.secrets["FMP_API_KEY"]
+fmp_key = st.secrets["FMP_API_KEY"]
+alpha_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
 
-def get_fund_profile(symbol, api_key):
+def get_from_fmp(symbol, api_key):
     url = f"https://financialmodelingprep.com/api/v3/profile/{symbol}?apikey={api_key}"
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-
+        r = requests.get(url)
+        r.raise_for_status()
+        data = r.json()
         if isinstance(data, list) and len(data) > 0:
-            profile = data[0]
+            p = data[0]
             return {
-                "name": profile.get("companyName", symbol),
-                "shares_outstanding": profile.get("sharesOutstanding"),
-                "market_cap": profile.get("mktCap"),
-                "price": profile.get("price"),
-                "website": profile.get("website"),
-                "symbol": symbol
+                "name": p.get("companyName", symbol),
+                "shares": p.get("sharesOutstanding"),
+                "market_cap": p.get("mktCap"),
+                "price": p.get("price"),
+                "website": p.get("website"),
+                "source": "FMP"
             }
-        else:
-            return None
+        return None
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        return None
+
+def get_from_alpha(symbol, api_key):
+    url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={api_key}"
+    try:
+        r = requests.get(url)
+        r.raise_for_status()
+        data = r.json()
+        if "SharesOutstanding" in data:
+            return {
+                "name": data.get("Name", symbol),
+                "shares": int(data["SharesOutstanding"]),
+                "market_cap": int(data.get("MarketCapitalization", 0)),
+                "price": None,
+                "website": None,
+                "source": "Alpha Vantage"
+            }
+        return None
+    except Exception as e:
         return None
 
 if ticker:
     with st.spinner("Looking up fund data..."):
-        result = get_fund_profile(ticker, api_key)
+        result = get_from_fmp(ticker, fmp_key)
+
+        # fallback if FMP fails or lacks share data
+        if not result or result["shares"] is None:
+            result = get_from_alpha(ticker, alpha_key)
 
         if result:
-            fund_name = result["name"]
-            shares_outstanding = result["shares_outstanding"]
-            market_cap = result["market_cap"]
-            price = result["price"]
-            website = result["website"]
+            st.markdown(f"### 📄 Fund: **{result['name']} ({ticker})**")
+            st.write(f"**Data Source:** {result['source']}")
 
-            st.markdown(f"### 📄 Fund: **{fund_name} ({ticker})**")
-
-            if shares_outstanding:
-                st.write(f"**Shares Outstanding:** {int(shares_outstanding):,}")
+            if result["shares"]:
+                st.write(f"**Shares Outstanding:** {int(result['shares']):,}")
             else:
                 st.info("Shares Outstanding data is not available.")
 
-            if market_cap:
-                st.write(f"**Market Cap:** ${int(market_cap):,}")
+            if result["market_cap"]:
+                st.write(f"**Market Cap:** ${int(result['market_cap']):,}")
             else:
                 st.info("Market Cap data is not available.")
 
-            if price:
-                st.write(f"**Price per Share:** ${price:,.2f}")
-            else:
-                st.info("Price data is not available.")
+            if result["price"]:
+                st.write(f"**Price per Share:** ${result['price']:,.2f}")
 
-            if market_cap and shares_outstanding:
-                nav = market_cap / shares_outstanding
+            if result["market_cap"] and result["shares"]:
+                nav = result["market_cap"] / result["shares"]
                 st.write(f"**Estimated NAV:** ${nav:,.4f}")
-            else:
-                st.info("NAV could not be calculated due to missing data.")
 
-            if website:
-                st.markdown(f"[🔗 Official Fund Page]({website})", unsafe_allow_html=True)
+            if result["website"]:
+                st.markdown(f"[🔗 Official Fund Page]({result['website']})", unsafe_allow_html=True)
             else:
-                google_search = f"https://www.google.com/search?q={ticker}+official+site"
-                st.markdown(f"[🔍 Search for fund profile on Google]({google_search})", unsafe_allow_html=True)
-
+                st.markdown(f"[🔍 Google the fund]({'https://www.google.com/search?q=' + ticker + '+fund'})", unsafe_allow_html=True)
         else:
-            st.warning("❌ No data found for that ticker. Please check that it's a valid ETF or mutual fund.")
+            st.warning("❌ No data found for that ticker in either FMP or Alpha Vantage.")
