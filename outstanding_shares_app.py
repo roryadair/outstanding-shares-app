@@ -66,6 +66,9 @@ if ticker:
 
             if website:
                 st.markdown(f"[🔗 Official Fund Page]({website})", unsafe_allow_html=True)
+            else:
+                google_search = f"https://www.google.com/search?q={ticker}+official+site"
+                st.markdown(f"[🔍 Search for fund profile on Google]({google_search})", unsafe_allow_html=True)
 
         else:
             st.warning("❌ No data found for that ticker. Please check that it's a valid ETF or mutual fund.")
