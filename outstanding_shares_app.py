@@ -8,7 +8,7 @@ st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
 ticker = st.text_input("Enter an ETF or mutual fund ticker symbol (e.g., JHCB, SPY, VTI):").upper().strip()
 
 # Fetch API key securely
-api_key = st.secrets.get("FMP_API_KEY")
+api_key = st.secrets["FMP_API_KEY"]
 
 def get_outstanding_shares(symbol, api_key):
     url = f"https://financialmodelingprep.com/api/v3/profile/{symbol}?apikey={api_key}"
