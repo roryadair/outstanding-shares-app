@@ -57,18 +57,14 @@ def get_from_alpha(symbol, api_key):
 if ticker:
     with st.spinner("Looking up fund data..."):
         fmp_result = get_from_fmp(ticker, fmp_key)
-        st.code(f"FMP raw result: {fmp_result}", language="json")
 
-        # Attempt Alpha Vantage only if FMP didn't include shares
         if not fmp_result or fmp_result["shares"] is None:
             alpha_result = get_from_alpha(ticker, alpha_key)
-            st.code(f"Alpha Vantage raw result: {alpha_result}", language="json")
 
-            # Only replace FMP if Alpha has shares
             if alpha_result and alpha_result["shares"]:
                 result = alpha_result
             else:
-                result = fmp_result  # show FMP even if incomplete
+                result = fmp_result  # still show FMP data even if shares are missing
         else:
             result = fmp_result
 
