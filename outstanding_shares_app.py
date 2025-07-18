@@ -26,6 +26,7 @@ def get_from_fmp(symbol, api_key):
             }
         return None
     except Exception as e:
+        st.error(f"FMP API error: {e}")
         return None
 
 def get_from_alpha(symbol, api_key):
@@ -35,25 +36,34 @@ def get_from_alpha(symbol, api_key):
         r.raise_for_status()
         data = r.json()
         if "SharesOutstanding" in data:
+            try:
+                shares = int(data.get("SharesOutstanding", 0))
+            except ValueError:
+                shares = None
             return {
                 "name": data.get("Name", symbol),
-                "shares": int(data["SharesOutstanding"]),
-                "market_cap": int(data.get("MarketCapitalization", 0)),
+                "shares": shares,
+                "market_cap": int(data.get("MarketCapitalization", 0)) if data.get("MarketCapitalization") else None,
                 "price": None,
                 "website": None,
                 "source": "Alpha Vantage"
             }
         return None
     except Exception as e:
+        st.error(f"Alpha Vantage API error: {e}")
         return None
 
 if ticker:
     with st.spinner("Looking up fund data..."):
-        result = get_from_fmp(ticker, fmp_key)
+        fmp_result = get_from_fmp(ticker, fmp_key)
+        st.code(f"FMP raw result: {fmp_result}", language="json")
 
-        # fallback if FMP fails or lacks share data
-        if not result or result["shares"] is None:
-            result = get_from_alpha(ticker, alpha_key)
+        if not fmp_result or fmp_result["shares"] is None:
+            alpha_result = get_from_alpha(ticker, alpha_key)
+            st.code(f"Alpha Vantage raw result: {alpha_result}", language="json")
+            result = alpha_result
+        else:
+            result = fmp_result
 
         if result:
             st.markdown(f"### 📄 Fund: **{result['name']} ({ticker})**")
