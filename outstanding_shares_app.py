@@ -4,10 +4,7 @@ import requests
 st.set_page_config(page_title="Outstanding Shares Finder", page_icon="📊")
 st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
 
-# Input field for ticker
 ticker = st.text_input("Enter an ETF or mutual fund ticker symbol (e.g., JHCB, SPY, VTI):").upper().strip()
-
-# Fetch API key securely
 api_key = st.secrets["FMP_API_KEY"]
 
 def get_outstanding_shares(symbol, api_key):
@@ -35,13 +32,11 @@ if ticker:
         result = get_outstanding_shares(ticker, api_key)
 
         if result:
-    fund_name = result["name"]
-    if result["shares_outstanding"]:
-        shares = f"{int(result['shares_outstanding']):,}"
-        st.success(f"✅ **{fund_name} ({ticker})** has **{shares}** shares outstanding.")
-    else:
-        st.info(f"ℹ️ **{fund_name} ({ticker})** was found, but `sharesOutstanding` data is not available.")
-else:
-    st.warning("❌ No data found for that ticker. Please check that it's a valid ETF or mutual fund.")
-
-
+            fund_name = result["name"]
+            if result["shares_outstanding"]:
+                shares = f"{int(result['shares_outstanding']):,}"
+                st.success(f"✅ **{fund_name} ({ticker})** has **{shares}** shares outstanding.")
+            else:
+                st.info(f"ℹ️ **{fund_name} ({ticker})** was found, but `sharesOutstanding` data is not available.")
+        else:
+            st.warning("❌ No data found for that ticker. Please check that it's a valid ETF or mutual fund.")
