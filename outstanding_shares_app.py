@@ -35,9 +35,10 @@ def get_from_alpha(symbol, api_key):
         r = requests.get(url)
         r.raise_for_status()
         data = r.json()
-        if "SharesOutstanding" in data:
+
+        if data and data.get("SharesOutstanding"):
             try:
-                shares = int(data.get("SharesOutstanding", 0))
+                shares = int(data.get("SharesOutstanding"))
             except ValueError:
                 shares = None
             return {
@@ -58,10 +59,16 @@ if ticker:
         fmp_result = get_from_fmp(ticker, fmp_key)
         st.code(f"FMP raw result: {fmp_result}", language="json")
 
+        # Attempt Alpha Vantage only if FMP didn't include shares
         if not fmp_result or fmp_result["shares"] is None:
             alpha_result = get_from_alpha(ticker, alpha_key)
             st.code(f"Alpha Vantage raw result: {alpha_result}", language="json")
-            result = alpha_result
+
+            # Only replace FMP if Alpha has shares
+            if alpha_result and alpha_result["shares"]:
+                result = alpha_result
+            else:
+                result = fmp_result  # show FMP even if incomplete
         else:
             result = fmp_result
 
@@ -72,7 +79,7 @@ if ticker:
             if result["shares"]:
                 st.write(f"**Shares Outstanding:** {int(result['shares']):,}")
             else:
-                st.info("Shares Outstanding data is not available.")
+                st.warning("Shares Outstanding not available from either source.")
 
             if result["market_cap"]:
                 st.write(f"**Market Cap:** ${int(result['market_cap']):,}")
@@ -91,4 +98,4 @@ if ticker:
             else:
                 st.markdown(f"[🔍 Google the fund]({'https://www.google.com/search?q=' + ticker + '+fund'})", unsafe_allow_html=True)
         else:
-            st.warning("❌ No data found for that ticker in either FMP or Alpha Vantage.")
+            st.warning("❌ No data found from either FMP or Alpha Vantage for this ticker.")
