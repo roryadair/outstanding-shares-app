@@ -34,9 +34,14 @@ if ticker:
     with st.spinner("Looking up shares outstanding..."):
         result = get_outstanding_shares(ticker, api_key)
 
-        if result and result["shares_outstanding"]:
-            shares = f"{int(result['shares_outstanding']):,}"
-            st.success(f"✅ **{result['name']} ({result['symbol']})** has **{shares}** shares outstanding.")
-        else:
-            st.warning("❌ No data found for that ticker. Please check that it's a valid ETF or mutual fund.")
+        if result:
+    fund_name = result["name"]
+    if result["shares_outstanding"]:
+        shares = f"{int(result['shares_outstanding']):,}"
+        st.success(f"✅ **{fund_name} ({ticker})** has **{shares}** shares outstanding.")
+    else:
+        st.info(f"ℹ️ **{fund_name} ({ticker})** was found, but `sharesOutstanding` data is not available.")
+else:
+    st.warning("❌ No data found for that ticker. Please check that it's a valid ETF or mutual fund.")
+
 
