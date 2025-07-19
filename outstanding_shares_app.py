@@ -1,12 +1,16 @@
 import streamlit as st
 import requests
+import openai
 
 st.set_page_config(page_title="Outstanding Shares Finder", page_icon="📊")
 st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
 
-ticker = st.text_input("Enter an ETF or mutual fund ticker symbol (e.g., JHCB, SPY, VTI):").upper().strip()
+# Required secrets
 fmp_key = st.secrets["FMP_API_KEY"]
 alpha_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+ticker = st.text_input("Enter an ETF or mutual fund ticker symbol (e.g., VOO, SPY, ARKK):").upper().strip()
 
 def get_from_fmp(symbol, api_key):
     url = f"https://financialmodelingprep.com/api/v3/profile/{symbol}?apikey={api_key}"
@@ -54,21 +58,32 @@ def get_from_alpha(symbol, api_key):
         st.error(f"Alpha Vantage API error: {e}")
         return None
 
+def get_chatgpt_answer(symbol):
+    prompt = f"How many shares outstanding does the ETF {symbol} have as of the most recent data? Include the fund name and source if known."
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_tokens=300
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"ChatGPT fallback failed: {e}")
+        return None
+
 if ticker:
     with st.spinner("Looking up fund data..."):
-        fmp_result = get_from_fmp(ticker, fmp_key)
+        result = get_from_fmp(ticker, fmp_key)
 
-        if not fmp_result or fmp_result["shares"] is None:
+        if not result or result["shares"] is None:
             alpha_result = get_from_alpha(ticker, alpha_key)
-
             if alpha_result and alpha_result["shares"]:
                 result = alpha_result
             else:
-                result = fmp_result  # still show FMP data even if shares are missing
-        else:
-            result = fmp_result
+                result = result  # show FMP even if incomplete
 
-        if result:
+        if result and result["name"]:
             st.markdown(f"### 📄 Fund: **{result['name']} ({ticker})**")
             st.write(f"**Data Source:** {result['source']}")
 
@@ -79,8 +94,6 @@ if ticker:
 
             if result["market_cap"]:
                 st.write(f"**Market Cap:** ${int(result['market_cap']):,}")
-            else:
-                st.info("Market Cap data is not available.")
 
             if result["price"]:
                 st.write(f"**Price per Share:** ${result['price']:,.2f}")
@@ -93,5 +106,17 @@ if ticker:
                 st.markdown(f"[🔗 Official Fund Page]({result['website']})", unsafe_allow_html=True)
             else:
                 st.markdown(f"[🔍 Google the fund]({'https://www.google.com/search?q=' + ticker + '+fund'})", unsafe_allow_html=True)
+
+            # Final fallback to ChatGPT if still no shares
+            if not result["shares"]:
+                gpt_response = get_chatgpt_answer(ticker)
+                if gpt_response:
+                    st.markdown("### 🤖 ChatGPT Estimate")
+                    st.markdown(gpt_response)
         else:
-            st.warning("❌ No data found from either FMP or Alpha Vantage for this ticker.")
+            gpt_response = get_chatgpt_answer(ticker)
+            if gpt_response:
+                st.markdown("### 🤖 ChatGPT Estimate")
+                st.markdown(gpt_response)
+            else:
+                st.warning("❌ No data found from any source.")
