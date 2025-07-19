@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-import openai
+from openai import OpenAI
 
 st.set_page_config(page_title="Outstanding Shares Finder", page_icon="📊")
 st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
@@ -8,7 +8,7 @@ st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
 # Required secrets
 fmp_key = st.secrets["FMP_API_KEY"]
 alpha_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 ticker = st.text_input("Enter an ETF or mutual fund ticker symbol (e.g., VOO, SPY, ARKK):").upper().strip()
 
@@ -61,7 +61,7 @@ def get_from_alpha(symbol, api_key):
 def get_chatgpt_answer(symbol):
     prompt = f"How many shares outstanding does the ETF {symbol} have as of the most recent data? Include the fund name and source if known."
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5,
