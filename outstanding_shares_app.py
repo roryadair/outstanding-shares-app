@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 from openai import OpenAI
