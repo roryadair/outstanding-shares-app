@@ -1,6 +1,12 @@
+
 import streamlit as st
 import requests
 from openai import OpenAI
+import time
+import hmac
+import hashlib
+import base64
+import json
 
 st.set_page_config(page_title="Outstanding Shares Finder", page_icon="📊")
 st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
@@ -9,6 +15,8 @@ st.title("📊 Outstanding Shares Finder (ETFs & Funds)")
 fmp_key = st.secrets["FMP_API_KEY"]
 alpha_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+whale_shared_key = st.secrets["WHALE_WISDOM_SHARED_KEY"]
+whale_secret_key = st.secrets["WHALE_WISDOM_SECRET_KEY"]
 
 ticker = st.text_input("Enter an ETF or mutual fund ticker symbol (e.g., VOO, SPY, ARKK):").upper().strip()
 
@@ -39,7 +47,6 @@ def get_from_alpha(symbol, api_key):
         r = requests.get(url)
         r.raise_for_status()
         data = r.json()
-
         if data and data.get("SharesOutstanding"):
             try:
                 shares = int(data.get("SharesOutstanding"))
@@ -56,6 +63,55 @@ def get_from_alpha(symbol, api_key):
         return None
     except Exception as e:
         st.error(f"Alpha Vantage API error: {e}")
+        return None
+
+def get_from_whale_wisdom(symbol, shared_key, secret_key):
+    def generate_signature(args_json, timestamp):
+        message = args_json + "\n" + timestamp
+        digest = hmac.new(secret_key.encode(), message.encode(), hashlib.sha1).digest()
+        return base64.b64encode(digest).decode()
+
+    def get_filer_id(symbol):
+        url = "https://whalewisdom.com/shell/command.json"
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        args = {"command": f"fund --ticker={symbol}"}
+        args_json = json.dumps(args)
+        sig = generate_signature(args_json, timestamp)
+        params = {"args": args_json, "api_shared_key": shared_key, "timestamp": timestamp, "api_sig": sig}
+        try:
+            r = requests.get(url, params=params)
+            r.raise_for_status()
+            return r.json().get("filer_id")
+        except:
+            return None
+
+    filer_id = get_filer_id(symbol)
+    if not filer_id:
+        return None
+
+    url = "https://whalewisdom.com/shell/command.json"
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    args = {"command": "holdings", "filer_ids": [filer_id], "columns": [14]}
+    args_json = json.dumps(args)
+    sig = generate_signature(args_json, timestamp)
+    params = {"args": args_json, "api_shared_key": shared_key, "timestamp": timestamp, "api_sig": sig}
+    try:
+        r = requests.get(url, params=params)
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
+            shares = data[0][0]
+            return {
+                "name": symbol,
+                "shares": int(shares),
+                "market_cap": None,
+                "price": None,
+                "website": None,
+                "source": "Whale Wisdom"
+            }
+        return None
+    except Exception as e:
+        st.error(f"Whale Wisdom API error: {e}")
         return None
 
 def get_chatgpt_answer(symbol):
@@ -80,8 +136,11 @@ if ticker:
             alpha_result = get_from_alpha(ticker, alpha_key)
             if alpha_result and alpha_result["shares"]:
                 result = alpha_result
-            else:
-                result = result  # show FMP even if incomplete
+
+        if not result or result["shares"] is None:
+            whale_result = get_from_whale_wisdom(ticker, whale_shared_key, whale_secret_key)
+            if whale_result and whale_result["shares"]:
+                result = whale_result
 
         if result and result["name"]:
             st.markdown(f"### 📄 Fund: **{result['name']} ({ticker})**")
@@ -90,7 +149,7 @@ if ticker:
             if result["shares"]:
                 st.write(f"**Shares Outstanding:** {int(result['shares']):,}")
             else:
-                st.warning("Shares Outstanding not available from either source.")
+                st.warning("Shares Outstanding not available from any source.")
 
             if result["market_cap"]:
                 st.write(f"**Market Cap:** ${int(result['market_cap']):,}")
@@ -107,7 +166,6 @@ if ticker:
             else:
                 st.markdown(f"[🔍 Google the fund]({'https://www.google.com/search?q=' + ticker + '+fund'})", unsafe_allow_html=True)
 
-            # Final fallback to ChatGPT if still no shares
             if not result["shares"]:
                 gpt_response = get_chatgpt_answer(ticker)
                 if gpt_response:
